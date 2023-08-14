@@ -94,23 +94,30 @@ export class ProductsService {
 
     //Create query runner
     const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect()
-    await queryRunner.startTransaction()
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
     try {
-      if(images){
-        await queryRunner.manager.delete(ProductImage,{product:{id}})
+      if (images) {
+        await queryRunner.manager.delete(ProductImage, { product: { id } });
+        product.images = images.map((image) =>
+          this.productImageRepository.create({ url: image }),
+        );
       }
-      await this.productRepository.save(product);
+      await queryRunner.manager.save(product);
+      await queryRunner.commitTransaction();
+      await queryRunner.release();
+      return this.findOnePlain(id);
     } catch (error) {
+      await queryRunner.rollbackTransaction();
+      await queryRunner.release();
       this.handleDBExceptions(error);
     }
-    return product;
   }
 
   async remove(id: string) {
     const product = await this.findOne(id);
-    this.productRepository.delete(id);
+    await this.productRepository.remove(product);
   }
   private handleDBExceptions(error: any) {
     if (error.code === '23505') throw new BadRequestException(error.detail);
